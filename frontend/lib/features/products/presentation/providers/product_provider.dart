@@ -121,6 +121,7 @@ class ProductProvider extends ChangeNotifier {
       'stock': int.parse(data['stock'].toString()),
       'min_stock': 5,
       'description': data['description'],
+      'image_url': data['image_url'],
       'created_at': DateTime.now().toIso8601String()
     });
     await loadAll();
@@ -134,6 +135,7 @@ class ProductProvider extends ChangeNotifier {
       'price': double.parse(data['price'].toString()),
       'stock': int.parse(data['stock'].toString()),
       'description': data['description'],
+      'image_url': data['image_url'],
     }, where: 'id = ?', whereArgs: [id]);
     await loadAll();
   }

@@ -76,9 +76,9 @@ class PrinterService {
     try {
       // HEADER
       bluetooth.printNewLine();
-      bluetooth.printCustom('UR FARM POS', 2, 1); // size=2, align=center
-      bluetooth.printCustom('Jl. Pertanian Raya No. 123', 0, 1);
-      bluetooth.printCustom('Kota Agrikultur', 0, 1);
+      bluetooth.printCustom('Kentunk Caffe and Bar', 2, 1); // size=2, align=center
+      bluetooth.printCustom('Jl. Pasar kembang. gang 2', 0, 1);
+      bluetooth.printCustom('Kota Yogyakarta', 0, 1);
       bluetooth.printCustom('================================', 0, 1);
 
       // INFO TRANSAKSI

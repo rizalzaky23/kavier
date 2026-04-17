@@ -8,6 +8,8 @@ import '../../data/models/product_model.dart';
 import '../../../../core/services/api_service.dart';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -164,8 +166,9 @@ class _ProductListTile extends StatelessWidget {
             width:  56,
             height: 56,
             child: product.imageUrl != null
-                ? Image.network(product.imageUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _placeholder())
+                ? (product.imageUrl!.startsWith('http')
+                    ? Image.network(product.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder())
+                    : Image.file(File(product.imageUrl!), fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder()))
                 : _placeholder(),
           ),
         ),
@@ -451,12 +454,21 @@ class _ProductFormState extends State<_ProductForm> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
+    String? finalImagePath = widget.product?.imageUrl;
+    if (_imageFile != null) {
+      final docDir = await getApplicationDocumentsDirectory();
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '.png';
+      final savedImage = await File(_imageFile!.path).copy('${docDir.path}/$fileName');
+      finalImagePath = savedImage.path;
+    }
+
     final data = {
       'name':        _nameCtrl.text.trim(),
       'category_id': _categoryId,
       'price':       _priceCtrl.text.trim(),
       'stock':       _stockCtrl.text.trim(),
       'description': _descCtrl.text.trim(),
+      'image_url':   finalImagePath,
     };
 
     try {

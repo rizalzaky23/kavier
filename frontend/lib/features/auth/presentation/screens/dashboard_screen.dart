@@ -37,7 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SUM(tax)      as total_tax,
           SUM(discount) as total_discount
         FROM transactions
-        WHERE date(created_at) = date('now')
+        WHERE date(created_at) = date('now', 'localtime')
       """);
 
       // Top produk bulan ini — langsung dari SQLite lokal
@@ -47,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                SUM(d.subtotal) as total_revenue
         FROM transaction_details d
         JOIN transactions t ON t.id = d.transaction_id
-        WHERE strftime('%Y-%m', t.created_at) = strftime('%Y-%m', 'now')
+        WHERE strftime('%Y-%m', t.created_at) = strftime('%Y-%m', 'now', 'localtime')
         GROUP BY d.product_id, d.name
         ORDER BY total_qty DESC
         LIMIT 5

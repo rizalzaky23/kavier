@@ -48,11 +48,11 @@ class _ReportsScreenState extends State<ReportsScreen>
       
       String dateCondition;
       if (_period == 'daily') {
-        dateCondition = "date(created_at) = date('now')";
+        dateCondition = "date(t.created_at) = date('now', 'localtime')";
       } else if (_period == 'weekly') {
-        dateCondition = "date(created_at) >= date('now', '-7 days')";
+        dateCondition = "date(t.created_at) >= date('now', '-7 days', 'localtime')";
       } else {
-        dateCondition = "strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')";
+        dateCondition = "strftime('%Y-%m', t.created_at) = strftime('%Y-%m', 'now', 'localtime')";
       }
 
       final summaryRes = await db.rawQuery('''
@@ -61,13 +61,13 @@ class _ReportsScreenState extends State<ReportsScreen>
           COUNT(id) as total_transactions,
           SUM(tax) as total_tax,
           SUM(discount) as total_discount
-        FROM transactions
+        FROM transactions t
         WHERE $dateCondition
       ''');
 
       final methodsRes = await db.rawQuery('''
         SELECT payment_method, COUNT(id) as count, SUM(total) as revenue
-        FROM transactions
+        FROM transactions t
         WHERE $dateCondition
         GROUP BY payment_method
       ''');
@@ -116,16 +116,19 @@ class _ReportsScreenState extends State<ReportsScreen>
       String csv = const ListToCsvConverter().convert(csvData);
       
       final temp = await getTemporaryDirectory();
-      final file = File('\${temp.path}/laporan_transaksi_pos.csv');
+      final file = File('${temp.path}/laporan_transaksi_pos.csv');
       await file.writeAsString(csv);
       
-      await Share.shareXFiles([XFile(file.path)], text: 'Laporan Excel Transaksi POS');
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/csv')], 
+        text: 'Laporan Excel Transaksi POS'
+      );
 
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Gagal membuat laporan excel.'),
+          SnackBar(
+              content: Text('Gagal export: $e'),
               backgroundColor: AppColors.error),
         );
       }

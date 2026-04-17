@@ -9,6 +9,7 @@ import '../../../products/data/models/product_model.dart';
 import '../providers/kasir_provider.dart';
 import '../../../../core/services/printer_service.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'dart:io';
 
 class KasirScreen extends StatefulWidget {
   const KasirScreen({super.key});
@@ -412,10 +413,15 @@ class _ProductCard extends StatelessWidget {
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(16)),
                 child: product.imageUrl != null
-                    ? Image.network(product.imageUrl!,
-                        fit:     BoxFit.cover,
-                        width:   double.infinity,
-                        errorBuilder: (_, __, ___) => _PlaceholderImage())
+                    ? (product.imageUrl!.startsWith('http')
+                        ? Image.network(product.imageUrl!,
+                            fit:     BoxFit.cover,
+                            width:   double.infinity,
+                            errorBuilder: (_, __, ___) => _PlaceholderImage())
+                        : Image.file(File(product.imageUrl!),
+                            fit:     BoxFit.cover,
+                            width:   double.infinity,
+                            errorBuilder: (_, __, ___) => _PlaceholderImage()))
                     : _PlaceholderImage(),
               ),
             ),
