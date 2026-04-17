@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — POS App</title>
+  <meta name="description" content="Masuk ke aplikasi kasir POS untuk UMKM dan kafe.">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="login-page">
+  <!-- Brand panel -->
+  <div class="login-brand">
+    <div class="brand-icon">🏪</div>
+    <h1>POS App</h1>
+    <p>Kasir cepat & modern<br>untuk UMKM dan Kafe</p>
+  </div>
+
+  <!-- Form panel -->
+  <div class="login-form-panel">
+    <div class="login-form-wrap">
+      <h2 class="login-title">Selamat Datang 👋</h2>
+      <p class="login-sub">Masuk ke akun kasir Anda</p>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input id="email" type="email" class="form-control"
+                 placeholder="admin@pos.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input id="password" type="password" class="form-control"
+                 placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <div id="login-error" style="display:none;color:var(--error);font-size:13px;margin-bottom:12px"></div>
+
+        <button type="submit" id="btn-login" class="btn btn-primary btn-block btn-lg">
+          Masuk
+        </button>
+      </form>
+
+      <p style="margin-top:24px;text-align:center;font-size:12px;color:var(--text-hint)">
+        Demo: admin@pos.com / password
+      </p>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<script src="assets/js/app.js"></script>
+<script>
+  // Redirect if already logged in
+  if (localStorage.getItem('pos_token')) window.location.href = 'kasir.html';
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const btn   = document.getElementById('btn-login');
+    const errEl = document.getElementById('login-error');
+    const email = document.getElementById('email').value;
+    const pass  = document.getElementById('password').value;
+
+    btn.disabled = true;
+    btn.textContent = 'Memproses...';
+    errEl.style.display = 'none';
+
+    try {
+      await login(email, pass);
+    } catch (err) {
+      errEl.textContent = err?.message || 'Login gagal.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Masuk';
+    }
+  }
+</script>
+</body>
+</html>

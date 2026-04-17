@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan — POS App</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <div class="sidebar" id="sidebar"></div>
+
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Laporan Penjualan</h1>
+        <p class="page-subtitle" id="report-period-label"></p>
+      </div>
+      <button class="btn btn-primary" onclick="doExport()">📥 Export Excel</button>
+    </div>
+
+    <!-- Period filter -->
+    <div style="padding:16px 24px;background:var(--surface);border-bottom:1px solid var(--border)">
+      <div class="chips-row" id="period-chips"></div>
+    </div>
+
+    <div class="page-body">
+      <!-- Summary cards -->
+      <div class="card-grid" id="report-stats">
+        <div class="loading-center"><div class="spinner"></div></div>
+      </div>
+
+      <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <!-- Top products -->
+        <div>
+          <h2 class="section-title">🏆 Produk Terlaris</h2>
+          <div class="card" style="padding:0" id="top-products-card">
+            <div class="loading-center"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+        <!-- Payment breakdown -->
+        <div>
+          <h2 class="section-title">💳 Metode Pembayaran</h2>
+          <div id="payment-breakdown">
+            <div class="loading-center"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction table -->
+      <div style="margin-top:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 class="section-title" style="margin:0">📋 Riwayat Transaksi</h2>
+        </div>
+        <div class="card" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Tanggal</th>
+                  <th>Kasir</th>
+                  <th>Total</th>
+                  <th>Bayar</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tx-tbody">
+                <tr><td colspan="6" class="loading-center"><div class="spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<script src="assets/js/app.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('Not auth');
+  document.getElementById('sidebar').innerHTML = renderSidebar('reports.html');
+
+  let currentPeriod = 'daily';
+  const periods = [
+    { value: 'daily',   label: 'Hari Ini' },
+    { value: 'weekly',  label: 'Minggu Ini' },
+    { value: 'monthly', label: 'Bulan Ini' },
+  ];
+
+  function renderPeriodChips() {
+    const el = document.getElementById('period-chips');
+    el.innerHTML = periods.map(p => `
+      <span class="chip ${p.value === currentPeriod ? 'active' : ''}"
+            onclick="setPeriod('${p.value}')">
+        ${p.label}
+      </span>`).join('');
+  }
+
+  function setPeriod(v) {
+    currentPeriod = v;
+    renderPeriodChips();
+    loadReportData();
+    loadTransactions();
+  }
+
+  async function loadReportData() {
+    const label = {daily:'Hari Ini', weekly:'Minggu Ini', monthly:'Bulan Ini'}[currentPeriod];
+    document.getElementById('report-period-label').textContent = `Periode: ${label}`;
+
+    try {
+      const [summaryRes, topRes] = await Promise.all([
+        API.get('/reports/summary', { period: currentPeriod }),
+        API.get('/reports/top-products', { period: currentPeriod }),
+      ]);
+      const s   = summaryRes.data;
+      const top = topRes.data;
+
+      document.getElementById('report-stats').innerHTML = `
+        ${statCard('📈', fmt(s.total_revenue || 0), 'Total Pendapatan', 'var(--primary)')}
+        ${statCard('🧾', s.total_transactions || 0, 'Jumlah Transaksi', 'var(--success)')}
+        ${statCard('📊', fmt(s.total_tax || 0), 'Pajak', 'var(--warning)')}
+        ${statCard('🎁', fmt(s.total_discount || 0), 'Diskon', 'var(--info)')}`;
+
+      document.getElementById('top-products-card').innerHTML = !top.length
+        ? '<p style="padding:20px;text-align:center;color:var(--text-secondary)">Belum ada data.</p>'
+        : top.slice(0, 8).map((p, i) => `
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--divider)">
+              <span style="font-weight:700;color:var(--primary);min-width:24px">${i + 1}</span>
+              <span style="flex:1;font-weight:500;font-size:13px">${p.product_name}</span>
+              <span style="color:var(--text-secondary);font-size:12px">${p.total_qty}x</span>
+              <span style="font-weight:700;font-size:13px;color:var(--primary)">${fmt(p.total_revenue)}</span>
+            </div>`).join('');
+
+      const methods = s.by_payment_method || [];
+      document.getElementById('payment-breakdown').innerHTML = !methods.length
+        ? '<p style="color:var(--text-secondary);padding:12px 0">Belum ada data.</p>'
+        : methods.map(m => `
+            <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+              <span style="font-size:32px">${m.payment_method === 'cash' ? '💵' : '📱'}</span>
+              <div style="flex:1">
+                <div style="font-weight:600;margin-bottom:2px">${m.payment_method === 'cash' ? 'Tunai' : 'Digital'}</div>
+                <div style="font-size:12px;color:var(--text-secondary)">${m.count} transaksi</div>
+              </div>
+              <span style="font-weight:700;color:var(--primary)">${fmt(m.revenue)}</span>
+            </div>`).join('');
+
+    } catch (err) {
+      console.error(err);
+      toast('Gagal memuat laporan.', 'error');
+    }
+  }
+
+  async function loadTransactions() {
+    const tbody = document.getElementById('tx-tbody');
+    try {
+      const map = { daily:'daily', weekly:'weekly', monthly:'monthly' };
+      const res = await API.get('/transactions', { per_page: 20 });
+      const txs = res.data?.data || res.data || [];
+
+      tbody.innerHTML = !txs.length
+        ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-secondary)">Tidak ada transaksi.</td></tr>'
+        : txs.map(tx => {
+            const d = new Date(tx.created_at);
+            const dateFmt = new Intl.DateTimeFormat('id-ID', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit',
+            });
+            return `
+              <tr>
+                <td style="font-family:monospace;font-size:12px">${tx.invoice_number}</td>
+                <td style="font-size:13px">${dateFmt.format(d)}</td>
+                <td>${tx.user?.name || '-'}</td>
+                <td style="font-weight:700;color:var(--primary)">${fmt(tx.total)}</td>
+                <td>${tx.payment_method === 'cash' ? '💵 Tunai' : '📱 Digital'}</td>
+                <td><span class="badge ${tx.status === 'completed' ? 'badge-success' : 'badge-error'}">${tx.status}</span></td>
+              </tr>`;
+          }).join('');
+    } catch (_) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--error)">Gagal memuat data.</td></tr>';
+    }
+  }
+
+  async function doExport() {
+    const token = localStorage.getItem('pos_token');
+    const url   = `${API.baseUrl}/reports/export?period=${currentPeriod}`;
+    toast('Mengunduh laporan...', 'info');
+    // Open in new tab
+    window.open(url + `&token=${token}`, '_blank');
+  }
+
+  function statCard(icon, value, label, color) {
+    return `<div class="stat-card">
+      <div class="stat-icon" style="color:${color}">${icon}</div>
+      <div class="stat-value">${value}</div>
+      <div class="stat-label">${label}</div>
+    </div>`;
+  }
+
+  renderPeriodChips();
+  loadReportData();
+  loadTransactions();
+</script>
+</body>
+</html>

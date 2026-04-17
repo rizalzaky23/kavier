@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kasir — POS App</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar"></div>
+
+  <!-- Main -->
+  <div class="main-content" style="display:flex;flex-direction:column;overflow:hidden">
+    <div class="kasir-layout">
+
+      <!-- Products Panel -->
+      <div class="kasir-products">
+        <!-- Topbar -->
+        <div class="kasir-topbar">
+          <div class="search-wrap" style="flex:1">
+            <span class="search-icon">🔍</span>
+            <input id="search-input" type="text" class="form-control"
+                   placeholder="Cari produk..." oninput="onSearch(this.value)">
+          </div>
+        </div>
+
+        <!-- Category filter -->
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+          <div class="chips-row" id="category-chips"></div>
+        </div>
+
+        <!-- Product grid -->
+        <div style="flex:1;overflow-y:auto">
+          <div id="product-grid" class="product-grid">
+            <div class="loading-center"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cart Panel -->
+      <div class="cart-panel">
+        <div class="cart-header">
+          <span class="cart-title">🛒 Keranjang</span>
+          <button onclick="clearCart()" class="btn btn-sm"
+                  style="color:var(--error);background:none;border:none;cursor:pointer">
+            Hapus Semua
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div id="cart-empty" class="cart-empty" style="display:flex">
+          <span class="icon">🛒</span>
+          <span>Belum ada produk</span>
+          <span style="font-size:11px">Klik produk untuk menambahkan</span>
+        </div>
+
+        <!-- Items -->
+        <div id="cart-items" class="cart-items"></div>
+
+        <!-- Summary -->
+        <div id="cart-summary" class="cart-summary" style="display:none"></div>
+
+        <!-- Checkout button -->
+        <div style="padding:12px 16px;border-top:1px solid var(--border)">
+          <button id="btn-checkout" class="btn btn-primary btn-block btn-lg"
+                  onclick="showCheckoutModal()" disabled>
+            💳 Proses Pembayaran
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<script src="assets/js/app.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('Not auth');
+
+  // Init sidebar
+  document.getElementById('sidebar').innerHTML = renderSidebar('kasir.html');
+
+  // Load data
+  async function init() {
+    await Promise.all([loadCategories(), loadProducts()]);
+    renderProducts();
+    renderCategoryChips('category-chips', State.selectedCat, selectCategory);
+  }
+
+  function selectCategory(id) {
+    State.selectedCat = id;
+    loadProducts(State.searchQ, id).then(() => {
+      renderProducts();
+      renderCategoryChips('category-chips', id, selectCategory);
+    });
+  }
+
+  let searchTimer;
+  function onSearch(v) {
+    State.searchQ = v;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      loadProducts(v, State.selectedCat).then(renderProducts);
+    }, 300);
+  }
+
+  function showCheckoutModal() {
+    if (State.cart.length === 0) return;
+
+    const bodyHTML = `
+      <!-- Payment method -->
+      <div class="form-group">
+        <label class="form-label">Metode Pembayaran</label>
+        <div style="display:flex;gap:10px">
+          <button id="pay-cash" class="btn btn-primary" style="flex:1"
+                  onclick="selectPayMethod('cash')">💵 Tunai</button>
+          <button id="pay-digital" class="btn btn-outline" style="flex:1"
+                  onclick="selectPayMethod('digital')">📱 Digital</button>
+        </div>
+      </div>
+
+      <!-- Discount -->
+      <div class="form-group">
+        <label class="form-label" for="discount-input">Diskon (Rp)</label>
+        <input id="discount-input" type="number" class="form-control" value="0" min="0"
+               oninput="updateCheckoutSummary()">
+      </div>
+
+      <!-- Paid amount -->
+      <div class="form-group">
+        <label class="form-label" for="paid-input">Jumlah Dibayar (Rp)</label>
+        <input id="paid-input" type="number" class="form-control"
+               value="${Math.ceil(State.total)}" min="0"
+               oninput="updateCheckoutSummary()">
+      </div>
+
+      <!-- Summary preview -->
+      <div id="checkout-summary" class="card" style="background:var(--bg)"></div>
+
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn btn-outline" style="flex:1" onclick="closeModal('checkout-modal')">Batal</button>
+        <button class="btn btn-primary btn-lg" style="flex:2" onclick="processCheckout()">
+          Bayar Sekarang
+        </button>
+      </div>`;
+
+    showModal('checkout-modal', '💳 Proses Pembayaran', bodyHTML);
+    State.payMethod = 'cash';
+    updateCheckoutSummary();
+  }
+
+  function selectPayMethod(method) {
+    State.payMethod = method;
+    document.getElementById('pay-cash')?.classList.toggle('btn-primary',    method === 'cash');
+    document.getElementById('pay-cash')?.classList.toggle('btn-outline',    method !== 'cash');
+    document.getElementById('pay-digital')?.classList.toggle('btn-primary', method === 'digital');
+    document.getElementById('pay-digital')?.classList.toggle('btn-outline', method !== 'digital');
+    updateCheckoutSummary();
+  }
+
+  function updateCheckoutSummary() {
+    const disc   = parseFloat(document.getElementById('discount-input')?.value || 0);
+    const paid   = parseFloat(document.getElementById('paid-input')?.value || 0);
+    State.discount   = disc;
+    State.paidAmount = paid;
+    const change = paid - State.total;
+
+    const el = document.getElementById('checkout-summary');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="summary-row"><span class="label">Subtotal</span><span>${fmt(State.subtotal)}</span></div>
+      <div class="summary-row"><span class="label">Pajak ${State.taxPct}%</span><span>${fmt(State.tax)}</span></div>
+      <div class="summary-row"><span class="label">Diskon</span><span style="color:var(--success)">− ${fmt(disc)}</span></div>
+      <div class="summary-row total"><span>TOTAL</span><span>${fmt(State.total)}</span></div>
+      <div class="summary-row" style="margin-top:6px">
+        <span class="label">Kembalian</span>
+        <span style="color:${change >= 0 ? 'var(--success)' : 'var(--error)'}; font-weight:600">
+          ${change >= 0 ? fmt(change) : '⚠️ Kurang ' + fmt(-change)}
+        </span>
+      </div>`;
+  }
+
+  async function processCheckout() {
+    const paid   = parseFloat(document.getElementById('paid-input')?.value || 0);
+    const disc   = parseFloat(document.getElementById('discount-input')?.value || 0);
+    await checkout(paid, State.payMethod, disc);
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — POS App</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="app-layout">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle" id="today-date"></p>
+      </div>
+      <button class="btn btn-outline" onclick="init()">🔄 Refresh</button>
+    </div>
+
+    <div class="page-body">
+      <!-- Summary cards -->
+      <div class="card-grid" id="stat-grid">
+        <div class="loading-center"><div class="spinner"></div></div>
+      </div>
+
+      <!-- Low stock alert -->
+      <div id="low-stock-section" style="display:none;margin-top:24px"></div>
+
+      <!-- Top products -->
+      <div style="margin-top:24px">
+        <h2 class="section-title">🏆 Produk Terlaris (Bulan Ini)</h2>
+        <div class="card" id="top-products-list">
+          <div class="loading-center"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Payment method breakdown -->
+      <div style="margin-top:24px">
+        <h2 class="section-title">💳 Metode Pembayaran Hari Ini</h2>
+        <div class="card-grid" id="payment-methods"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+<script src="assets/js/app.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('Not auth');
+  document.getElementById('sidebar').innerHTML = renderSidebar('dashboard.html');
+
+  const dateFmt = new Intl.DateTimeFormat('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('today-date').textContent = dateFmt.format(new Date());
+
+  async function init() {
+    try {
+      const [summaryRes, topRes, lowRes] = await Promise.all([
+        API.get('/reports/summary', { period: 'daily' }),
+        API.get('/reports/top-products', { period: 'monthly' }),
+        API.get('/products/low-stock'),
+      ]);
+
+      const s    = summaryRes.data;
+      const top  = topRes.data;
+      const low  = lowRes.data;
+
+      // Stats
+      document.getElementById('stat-grid').innerHTML = `
+        ${statCard('📈', fmt(s.total_revenue || 0), 'Pendapatan Hari Ini', 'var(--primary)')}
+        ${statCard('🧾', s.total_transactions || 0, 'Transaksi Hari Ini', 'var(--success)')}
+        ${statCard('📊', fmt(s.total_tax || 0), 'Pajak Terkumpul', 'var(--warning)')}
+        ${statCard('🎁', fmt(s.total_discount || 0), 'Total Diskon', 'var(--info)')}`;
+
+      // Low stock
+      if (low.length > 0) {
+        const sec = document.getElementById('low-stock-section');
+        sec.style.display = 'block';
+        sec.innerHTML = `
+          <div style="background:var(--warning-10);border:1px solid var(--warning);border-radius:var(--radius-lg);padding:16px">
+            <h3 style="color:var(--warning);margin-bottom:10px">⚠️ Stok Menipis (${low.length} produk)</h3>
+            ${low.slice(0, 5).map(p =>
+              `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px">
+                <span>${p.name}</span>
+                <span class="badge badge-warning">Sisa ${p.stock}</span>
+              </div>`
+            ).join('')}
+          </div>`;
+      }
+
+      // Top products
+      document.getElementById('top-products-list').innerHTML = top.length === 0
+        ? '<p style="color:var(--text-secondary);text-align:center;padding:20px">Belum ada data transaksi.</p>'
+        : top.slice(0, 8).map((p, i) => `
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--divider)">
+              <span style="font-size:18px;font-weight:700;color:var(--primary);min-width:24px">${i+1}</span>
+              <span style="flex:1;font-weight:500">${p.product_name}</span>
+              <span style="color:var(--text-secondary);font-size:13px">${p.total_qty} terjual</span>
+              <span style="font-weight:700;color:var(--primary)">${fmt(p.total_revenue)}</span>
+            </div>`).join('');
+
+      // Payment methods
+      const methods = s.by_payment_method || [];
+      document.getElementById('payment-methods').innerHTML = methods.length === 0
+        ? '<p style="color:var(--text-secondary)">Belum ada transaksi hari ini.</p>'
+        : methods.map(m => `
+            <div class="stat-card">
+              <div class="stat-icon">${m.payment_method === 'cash' ? '💵' : '📱'}</div>
+              <div class="stat-value">${fmt(m.revenue)}</div>
+              <div class="stat-label">${m.payment_method === 'cash' ? 'Tunai' : 'Digital'} · ${m.count} transaksi</div>
+            </div>`).join('');
+
+    } catch (err) {
+      console.error(err);
+      toast('Gagal memuat data dashboard.', 'error');
+    }
+  }
+
+  function statCard(icon, value, label, color) {
+    return `<div class="stat-card">
+      <div class="stat-icon" style="color:${color}">${icon}</div>
+      <div class="stat-value">${value}</div>
+      <div class="stat-label">${label}</div>
+    </div>`;
+  }
+
+  init();
+</script>
+</body>
+</html>
