@@ -8,6 +8,7 @@ import 'core/constants/app_colors.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/home_screen.dart';
+import 'features/auth/presentation/screens/license_expired_screen.dart';
 import 'features/kasir/presentation/providers/kasir_provider.dart';
 import 'features/products/presentation/providers/product_provider.dart';
 
@@ -43,8 +44,15 @@ class PosApp extends StatelessWidget {
       theme:        _buildTheme(),
       initialRoute: '/login',
       routes: {
-        '/login': (_) => const _AuthGate(),
-        '/home':  (_) => const HomeScreen(),
+        '/login':           (_) => const _AuthGate(),
+        '/home':            (_) => const HomeScreen(),
+        '/license-expired': (ctx) {
+          final args = ModalRoute.of(ctx)?.settings.arguments as Map<String, String?>?;
+          return LicenseExpiredScreen(
+            licenseEnd: args?['licenseEnd'],
+            errorCode:  args?['errorCode'],
+          );
+        },
       },
     );
   }

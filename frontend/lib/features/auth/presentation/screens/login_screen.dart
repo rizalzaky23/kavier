@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart';
+import 'license_expired_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,8 +44,26 @@ class _LoginScreenState extends State<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
     final ok   = await auth.login(_emailCtrl.text.trim(), _passwordCtrl.text);
-    if (ok && mounted) {
+    if (!mounted) return;
+
+    if (ok) {
       Navigator.of(context).pushReplacementNamed('/home');
+    } else {
+      // Jika gagal karena lisensi (bukan salah password lokal)
+      final status = auth.licenseStatus;
+      if (status == LicenseStatus.expired ||
+          status == LicenseStatus.disabled ||
+          status == LicenseStatus.noLicense) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => LicenseExpiredScreen(
+              licenseEnd: auth.licenseEnd,
+              errorCode:  auth.license?.code,
+            ),
+          ),
+        );
+      }
+      // Error message sudah di-set di auth_provider, akan tampil di Consumer
     }
   }
 
@@ -199,12 +218,32 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
 
                           const SizedBox(height: 24),
-                          Center(
-                            child: Text('Demo: admin@pos.com / password',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color:    AppColors.textHint,
-                                )),
+
+                          // License server info
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.cloud_outlined,
+                                    size: 16, color: AppColors.textHint),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Login memerlukan koneksi internet untuk verifikasi lisensi.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: AppColors.textHint,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),

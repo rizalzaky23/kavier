@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
-import 'package:sqflite/sqflite.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -190,7 +189,9 @@ class _ReportsScreenState extends State<ReportsScreen>
       sheetObject.setColumnWidth(1, 20); // Invoice
       sheetObject.setColumnWidth(2, 15); // Method
       sheetObject.setColumnWidth(9, 20); // Date
-      for (int i=3; i<=8; i++) sheetObject.setColumnWidth(i, 15);
+      for (int i=3; i<=8; i++) {
+        sheetObject.setColumnWidth(i, 15);
+      }
 
       var fileBytes = excel.save();
       final temp = await getTemporaryDirectory();

@@ -7,6 +7,7 @@ import '../../../kasir/presentation/screens/kasir_screen.dart';
 import '../../../products/presentation/screens/products_screen.dart';
 import '../../../reports/presentation/screens/reports_screen.dart';
 import 'dashboard_screen.dart';
+import 'license_expired_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,22 +20,23 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final List<_NavItem> _navItems = [
-    _NavItem(icon: Icons.grid_view_rounded,      label: 'Dashboard', screen: const DashboardScreen()),
-    _NavItem(icon: Icons.point_of_sale_rounded,  label: 'Kasir',     screen: const KasirScreen()),
-    _NavItem(icon: Icons.inventory_2_outlined,   label: 'Produk',    screen: const ProductsScreen()),
-    _NavItem(icon: Icons.bar_chart_rounded,      label: 'Laporan',   screen: const ReportsScreen()),
+    const _NavItem(icon: Icons.grid_view_rounded,      label: 'Dashboard', screen: DashboardScreen()),
+    const _NavItem(icon: Icons.point_of_sale_rounded,  label: 'Kasir',     screen: KasirScreen()),
+    const _NavItem(icon: Icons.inventory_2_outlined,   label: 'Produk',    screen: ProductsScreen()),
+    const _NavItem(icon: Icons.bar_chart_rounded,      label: 'Laporan',   screen: ReportsScreen()),
   ];
 
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 700;
-    final user   = context.watch<AuthProvider>().user;
+    final auth   = context.watch<AuthProvider>();
+    final user   = auth.user;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: isWide
           ? Row(children: [
-              _buildSidebar(user),
+              _buildSidebar(auth, user),
               Expanded(child: _navItems[_selectedIndex].screen),
             ])
           : _navItems[_selectedIndex].screen,
@@ -56,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSidebar(user) {
+  Widget _buildSidebar(AuthProvider auth, user) {
     return Container(
       width: 240,
       color: AppColors.white,
@@ -83,6 +85,70 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize:   18,
                   )),
             ]),
+          ),
+
+          // License expiry warning banner
+          Consumer<AuthProvider>(
+            builder: (_, a, __) {
+              if (a.licenseStatus == LicenseStatus.expiringSoon) {
+                return GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded,
+                            color: Colors.orange, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Lisensi berakhir dalam ${a.daysRemaining ?? 0} hari',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              } else if (a.licenseStatus == LicenseStatus.offlineCached) {
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cloud_off_outlined,
+                          color: Colors.blue, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Mode offline — lisensi dari cache',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
 
           // User info
@@ -120,6 +186,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             color:    AppColors.primary,
                             fontWeight: FontWeight.w500,
                           )),
+                      if (auth.licenseEnd != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Sewa Berakhir: ${auth.licenseEnd}',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: AppColors.textHint,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

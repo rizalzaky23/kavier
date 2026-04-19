@@ -9,7 +9,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel>  _lowStock   = [];
   bool    _isLoading    = false;
   String? _errorMessage;
-  String  _searchQuery  = '';
+  final String  _searchQuery  = '';
   int?    _selectedCategoryId;
 
   List<ProductModel>  get products   => _products;
@@ -43,7 +43,7 @@ class ProductProvider extends ChangeNotifier {
       }
 
       if (conditions.isNotEmpty) {
-        query += ' WHERE ' + conditions.join(' AND ');
+        query += ' WHERE ${conditions.join(' AND ')}';
       }
       query += ' ORDER BY p.id DESC';
 

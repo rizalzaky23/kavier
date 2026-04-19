@@ -5,8 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../providers/product_provider.dart';
 import '../../data/models/product_model.dart';
-import '../../../../core/services/api_service.dart';
-import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -457,7 +455,7 @@ class _ProductFormState extends State<_ProductForm> {
     String? finalImagePath = widget.product?.imageUrl;
     if (_imageFile != null) {
       final docDir = await getApplicationDocumentsDirectory();
-      final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '.png';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
       final savedImage = await File(_imageFile!.path).copy('${docDir.path}/$fileName');
       finalImagePath = savedImage.path;
     }

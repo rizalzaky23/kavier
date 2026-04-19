@@ -238,6 +238,59 @@ class _AppDrawerState extends State<AppDrawer> {
             ),
           ),
 
+          // License Info Card
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFEDD5)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.verified_user_outlined, color: Color(0xFFEA580C), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Sewa Berakhir: ${context.watch<AuthProvider>().licenseEnd ?? '-'}',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF9A3412),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1, color: Color(0xFFFFEDD5)),
+                ),
+                Text(
+                  'Jika masa sewa habis/untuk perpanjangan, silakan hubungi:',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF9A3412),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '📧 adminkavier@gmail.com\n📱 WA: 089628959615',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF9A3412),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const Spacer(),
 
           // Footer Logout
