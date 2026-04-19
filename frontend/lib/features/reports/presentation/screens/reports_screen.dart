@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:sqflite/sqflite.dart';
-import 'package:csv/csv.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -99,29 +99,113 @@ class _ReportsScreenState extends State<ReportsScreen>
     setState(() => _exporting = true);
     try {
       final db = await DatabaseService().database;
-      final txns = await db.rawQuery('SELECT * FROM transactions ORDER BY id DESC');
       
-      List<List<dynamic>> csvData = [
-        ['ID', 'No Invoice', 'Metode Bayar', 'Subtotal', 'Pajak', 'Diskon', 'Total', 'Dibayar', 'Kembalian', 'Tanggal']
-      ];
-      
-      for (var t in txns) {
-        csvData.add([
-          t['id'], t['invoice_number'], t['payment_method'],
-          t['subtotal'], t['tax'], t['discount'], t['total'],
-          t['paid_amount'], t['change_amount'], t['created_at']
-        ]);
+      String dateCondition;
+      String periodTitle;
+      if (_period == 'daily') {
+        dateCondition = "date(created_at) = date('now', 'localtime')";
+        periodTitle = 'Harian';
+      } else if (_period == 'weekly') {
+        dateCondition = "date(created_at) >= date('now', '-7 days', 'localtime')";
+        periodTitle = 'Mingguan';
+      } else {
+        dateCondition = "strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')";
+        periodTitle = 'Bulanan';
       }
+
+      final txns = await db.rawQuery('SELECT * FROM transactions WHERE $dateCondition ORDER BY id DESC');
       
-      String csv = const ListToCsvConverter().convert(csvData);
+      var excel = Excel.createExcel();
+      Sheet sheetObject = excel['Laporan'];
+      excel.setDefaultSheet('Laporan');
+
+      // Title
+      CellStyle titleStyle = CellStyle(
+        bold: true,
+        fontSize: 16,
+        horizontalAlign: HorizontalAlign.Center,
+      );
+      var titleCell = sheetObject.cell(CellIndex.indexByString("A1"));
+      titleCell.value = TextCellValue("Laporan Transaksi $periodTitle");
+      titleCell.cellStyle = titleStyle;
+      sheetObject.merge(CellIndex.indexByString("A1"), CellIndex.indexByString("J1"));
+
+      // Date Generated
+      var dateCell = sheetObject.cell(CellIndex.indexByString("A2"));
+      dateCell.value = TextCellValue("Dicetak: ${DateFormat('dd-MM-yyyy HH:mm').format(DateTime.now())}");
+      sheetObject.merge(CellIndex.indexByString("A2"), CellIndex.indexByString("J2"));
+
+      // Header
+      List<String> headers = ['ID', 'No Invoice', 'Metode Bayar', 'Subtotal', 'Pajak', 'Diskon', 'Total', 'Dibayar', 'Kembalian', 'Tanggal'];
+      CellStyle headerStyle = CellStyle(
+        bold: true,
+        horizontalAlign: HorizontalAlign.Center,
+      );
       
+      for (int i = 0; i < headers.length; i++) {
+        var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 3));
+        cell.value = TextCellValue(headers[i]);
+        cell.cellStyle = headerStyle;
+      }
+
+      // Data
+      int rowIdx = 4;
+      double sumSubtotal = 0;
+      double sumTax = 0;
+      double sumDiscount = 0;
+      double sumTotal = 0;
+
+      for (var t in txns) {
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx)).value = IntCellValue(t['id'] as int);
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIdx)).value = TextCellValue(t['invoice_number'].toString());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIdx)).value = TextCellValue(t['payment_method'].toString().toUpperCase());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIdx)).value = DoubleCellValue((t['subtotal'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIdx)).value = DoubleCellValue((t['tax'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIdx)).value = DoubleCellValue((t['discount'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIdx)).value = DoubleCellValue((t['total'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIdx)).value = DoubleCellValue((t['paid_amount'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIdx)).value = DoubleCellValue((t['change_amount'] as num).toDouble());
+        sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: rowIdx)).value = TextCellValue(t['created_at'].toString());
+        
+        sumSubtotal += (t['subtotal'] as num).toDouble();
+        sumTax += (t['tax'] as num).toDouble();
+        sumDiscount += (t['discount'] as num).toDouble();
+        sumTotal += (t['total'] as num).toDouble();
+
+        rowIdx++;
+      }
+
+      // Footer sums
+      CellStyle footerStyle = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Right);
+      var footerLabel = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIdx));
+      footerLabel.value = TextCellValue('TOTAL');
+      footerLabel.cellStyle = footerStyle;
+
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIdx)).value = DoubleCellValue(sumSubtotal);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIdx)).value = DoubleCellValue(sumTax);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIdx)).value = DoubleCellValue(sumDiscount);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIdx)).value = DoubleCellValue(sumTotal);
+
+      // Auto fit columns (approximate)
+      sheetObject.setColumnWidth(1, 20); // Invoice
+      sheetObject.setColumnWidth(2, 15); // Method
+      sheetObject.setColumnWidth(9, 20); // Date
+      for (int i=3; i<=8; i++) sheetObject.setColumnWidth(i, 15);
+
+      var fileBytes = excel.save();
       final temp = await getTemporaryDirectory();
-      final file = File('${temp.path}/laporan_transaksi_pos.csv');
-      await file.writeAsString(csv);
+      final file = File('${temp.path}/laporan_transaksi_pos_$_period.xlsx');
       
+      await file.writeAsBytes(fileBytes!);
+      
+      String textLaporan = 'Laporan Excel Transaksi POS';
+      if (_period == 'daily') textLaporan += ' (Hari Ini)';
+      if (_period == 'weekly') textLaporan += ' (Minggu Ini)';
+      if (_period == 'monthly') textLaporan += ' (Bulan Ini)';
+
       await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/csv')], 
-        text: 'Laporan Excel Transaksi POS'
+        [XFile(file.path, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')], 
+        text: textLaporan
       );
 
     } catch (e) {

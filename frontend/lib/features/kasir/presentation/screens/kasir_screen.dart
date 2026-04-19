@@ -10,6 +10,8 @@ import '../providers/kasir_provider.dart';
 import '../../../../core/services/printer_service.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'dart:io';
+import '../../../../core/widgets/app_drawer.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class KasirScreen extends StatefulWidget {
   const KasirScreen({super.key});
@@ -43,8 +45,8 @@ class _KasirScreenState extends State<KasirScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      drawer: const AppDrawer(),
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         backgroundColor: AppColors.white,
         elevation: 0,
         title: Text('Kasir',
@@ -624,13 +626,29 @@ class _CheckoutDialog extends StatefulWidget {
 }
 
 class _CheckoutDialogState extends State<_CheckoutDialog> {
+  final _adminNameCtrl = TextEditingController();
+  final _customerNameCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.user != null) {
+        _adminNameCtrl.text = authProvider.user!.name;
+      } else {
+        _adminNameCtrl.text = 'Admin';
+      }
       final kasir = context.read<KasirProvider>();
       kasir.setPaidAmount(kasir.total);
     });
+  }
+
+  @override
+  void dispose() {
+    _adminNameCtrl.dispose();
+    _customerNameCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -642,9 +660,10 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
             style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
         content: SizedBox(
           width: 340,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               // Payment method
               Row(children: [
                 _PayMethodBtn(
@@ -672,6 +691,30 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                       borderRadius: BorderRadius.circular(10)),
                 ),
                 onChanged: (v) => kasir.setDiscount(double.tryParse(v) ?? 0),
+              ),
+              const SizedBox(height: 12),
+
+              // Admin Name
+              TextField(
+                controller:  _adminNameCtrl,
+                decoration: InputDecoration(
+                  labelText:  'Nama Admin',
+                  prefixIcon: const Icon(Icons.person_outline_rounded),
+                  border:     OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Customer Name
+              TextField(
+                controller:  _customerNameCtrl,
+                decoration: InputDecoration(
+                  labelText:  'Nama Pembeli (Opsional)',
+                  prefixIcon: const Icon(Icons.people_alt_rounded),
+                  border:     OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -721,6 +764,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                 ),
             ],
           ),
+         ),
         ),
         actions: [
           TextButton(
@@ -747,6 +791,8 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                         widget.fmt,
                         kasir,
                         itemsCopy,
+                        _adminNameCtrl.text.isEmpty ? 'Admin' : _adminNameCtrl.text,
+                        _customerNameCtrl.text,
                       );
                     }
                   },
@@ -762,7 +808,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
     );
   }
 
-  void _showSuccessDialog(BuildContext ctx, result, fmt, kasir, items) {
+  void _showSuccessDialog(BuildContext ctx, result, fmt, kasir, items, String adminName, String customerName) {
     // ctx adalah scaffoldCtx yang valid (bukan context dialog)
     showDialog(
       context: ctx,
@@ -819,7 +865,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                   Navigator.pop(dialogCtx);
                   // addPostFrameCallback tidak async gap — context aman digunakan
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _printNota(capturedCtx, result, items);
+                    _printNota(capturedCtx, result, items, adminName, customerName);
                   });
                 },
               ),
@@ -863,7 +909,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
   }
 
   /// Mencetak nota ke printer Bluetooth Eyes (atau merek lain)
-  void _printNota(BuildContext scaffoldCtx, dynamic transaction, dynamic items) async {
+  void _printNota(BuildContext scaffoldCtx, dynamic transaction, dynamic items, String adminName, String customerName) async {
     final printerService = PrinterService();
 
     // 1. Minta izin Bluetooth
@@ -1030,7 +1076,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
 
                   try {
                     await printerService.connect(d);
-                    await printerService.printReceipt(transaction, items);
+                    await printerService.printReceipt(transaction, items, adminName: adminName, customerName: customerName);
                     await printerService.disconnect();
 
                     // Tutup progress

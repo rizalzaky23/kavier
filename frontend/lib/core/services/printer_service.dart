@@ -2,6 +2,7 @@ import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../features/kasir/data/models/transaction_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PrinterService {
   final BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
@@ -67,18 +68,26 @@ class PrinterService {
   }
 
   /// Mencetak format Nota (lebar 58mm = ~32 karakter per baris)
-  Future<void> printReceipt(TransactionModel transaction, List<dynamic> items) async {
+  Future<void> printReceipt(TransactionModel transaction, List<dynamic> items, {String adminName = 'Admin', String? customerName}) async {
     bool? isConnected = await bluetooth.isConnected;
     if (isConnected != true) {
       throw Exception('Printer belum terhubung');
     }
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final storeName = prefs.getString('store_name') ?? 'Kentunk Caffe and Bar';
+      final storeAddress = prefs.getString('store_address') ?? 'Jl. Pasar kembang. gang 2\nKota Yogyakarta';
+
+      // Pisahkan alamat jika ada newline (untuk nge-print baris per baris)
+      List<String> addressLines = storeAddress.split('\n');
+
       // HEADER
       bluetooth.printNewLine();
-      bluetooth.printCustom('Kentunk Caffe and Bar', 2, 1); // size=2, align=center
-      bluetooth.printCustom('Jl. Pasar kembang. gang 2', 0, 1);
-      bluetooth.printCustom('Kota Yogyakarta', 0, 1);
+      bluetooth.printCustom(storeName, 2, 1); // size=2, align=center
+      for (String line in addressLines) {
+        bluetooth.printCustom(line, 0, 1);
+      }
       bluetooth.printCustom('================================', 0, 1);
 
       // INFO TRANSAKSI
@@ -87,7 +96,10 @@ class PrinterService {
           'No: ${transaction.invoiceNumber}',
           DateFormat('dd/MM/yy HH:mm').format(dt),
           0);
-      bluetooth.printCustom('Kasir: Admin', 0, 0);
+      bluetooth.printCustom('Kasir: $adminName', 0, 0);
+      if (customerName != null && customerName.isNotEmpty) {
+        bluetooth.printCustom('Pelanggan: $customerName', 0, 0);
+      }
       bluetooth.printCustom('================================', 0, 1);
 
       // DAFTAR ITEM
